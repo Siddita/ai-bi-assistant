@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forecast Display</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        .forecast-container {
+            max-width: 800px;
+            margin: 20px;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            background-color: white;
+        }
+        h1 {
+            color: #333;
+        }
+        .forecast-image {
+            max-width: 100%;
+            height: auto;
+            margin-top: 20px;
+        }
+        .loading {
+            display: none;
+            margin: 20px;
+        }
+        .error {
+            color: red;
+            display: none;
+            margin: 20px;
+            text-align: center;
+            white-space: pre-wrap;
+        }
+        .retry-button {
+            margin-top: 10px;
+            padding: 8px 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .retry-button:hover {
+            background-color: #45a049;
+        }
+        .welcome {
+            color: #666;
+            text-align: center;
+            margin: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Forecast Display</h1>
+    <div class="forecast-container">
+        <div class="loading">Loading forecast...</div>
+        <div class="error"></div>
+        <div class="welcome"></div>
+        <img id="forecastImage" class="forecast-image" alt="Forecast visualization">
+    </div>
+
+    <script>
+        async function fetchForecast() {
+            const loading = document.querySelector('.loading');
+            const error = document.querySelector('.error');
+            const welcome = document.querySelector('.welcome');
+            const image = document.getElementById('forecastImage');
+
+            try {
+                loading.style.display = 'block';
+                error.style.display = 'none';
+                welcome.style.display = 'none';
+                image.style.display = 'none';
+
+                // First check if the API is running
+                const healthCheck = await fetch('http://localhost:8000/', {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    mode: 'cors'
+                });
+
+                if (!healthCheck.ok) {
+                    throw new Error(`API is not responding: ${healthCheck.status}`);
+                }
+
+                const healthData = await healthCheck.json();
+                console.log('API Status:', healthData);
+                welcome.textContent = healthData.message;
+                welcome.style.display = 'block';
+
+                // Now fetch the forecast data using the /ask endpoint
+                const response = await fetch('http://localhost:8000/ask', {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        question: "Show me a forecast of sales for the next 30 days"
+                    }),
+                    mode: 'cors'
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Forecast error: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('Forecast data:', data);
+
+                if (data.type === 'forecast' && data.data) {
+                    image.src = data.data;
+                    image.style.display = 'block';
+                } else if (data.image || data.url || data.forecast) {
+                    image.src = data.image || data.url || data.forecast;
+                    image.style.display = 'block';
+                } else {
+                    throw new Error(`Unexpected forecast format: ${JSON.stringify(data)}`);
+                }
+            } catch (err) {
+                console.error('Error:', err);
+                error.innerHTML = `
+                    Error: ${err.message}<br>
+                    Please check the console for more details.<br>
+                    <button class="retry-button" onclick="fetchForecast()">Retry</button>
+                `;
+                error.style.display = 'block';
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        // Fetch forecast when page loads
+        fetchForecast();
+    </script>
+</body>
+</html> 
